@@ -1,0 +1,404 @@
+#!/usr/bin/env python3
+
+import argparse
+import subprocess
+import os
+import sys
+import time
+import re
+import dateutil.relativedelta
+
+HANDLED_EXTENSIONS = [
+    ".264",
+    ".265",
+    ".266",
+    ".302",
+    ".3g2",
+    ".3gp",
+    ".669",
+    ".722",
+    ".aa",
+    ".aa3",
+    ".aac",
+    ".aax",
+    ".abc",
+    ".ac3",
+    ".ac4",
+    ".acm",
+    ".adf",
+    ".adp",
+    ".ads",
+    ".adx",
+    ".aea",
+    ".afc",
+    ".aix",
+    ".al",
+    ".amf",
+    ".ams",
+    ".ans",
+    ".apc",
+    ".ape",
+    ".apl",
+    ".aptx",
+    ".aptxhd",
+    ".aqt",
+    ".art",
+    ".asc",
+    ".ast",
+    ".avc",
+    ".avi",
+    ".avif",
+    ".avr",
+    ".avs",
+    ".avs2",
+    ".avs3",
+    ".bcstm",
+    ".bfstm",
+    ".binka",
+    ".bit",
+    ".bitpacked",
+    ".bmv",
+    ".bonk",
+    ".brstm",
+    ".c2",
+    ".cdata",
+    ".cdg",
+    ".cdxl",
+    ".cgi",
+    ".cif",
+    ".dat",
+    ".daud",
+    ".dav",
+    ".dbm",
+    ".dfpwm",
+    ".dif",
+    ".digi",
+    ".diz",
+    ".dmf",
+    ".dsm",
+    ".dss",
+    ".dtk",
+    ".dtm",
+    ".dts",
+    ".dtshd",
+    ".dv",
+    ".eac3",
+    ".ec3",
+    ".evc",
+    ".f4v",
+    ".fap",
+    ".far",
+    ".flac",
+    ".flm",
+    ".flv",
+    ".fsb",
+    ".fwse",
+    ".g722",
+    ".g723_1",
+    ".g729",
+    ".gdm",
+    ".genh",
+    ".gif",
+    ".gsm",
+    ".h261",
+    ".h264",
+    ".h265",
+    ".h266",
+    ".h26l",
+    ".hca",
+    ".hevc",
+    ".ice",
+    ".idf",
+    ".idx",
+    ".ifv",
+    ".imf",
+    ".imx",
+    ".ipu",
+    ".ircam",
+    ".ism",
+    ".isma",
+    ".ismv",
+    ".it",
+    ".itgz",
+    ".itr",
+    ".itz",
+    ".ivr",
+    ".j2b",
+    ".j2k",
+    ".jxl",
+    ".kux",
+    ".laf",
+    ".lvf",
+    ".m15",
+    ".m2a",
+    ".m4a",
+    ".m4b",
+    ".m4v",
+    ".mac",
+    ".mca",
+    ".mcc",
+    ".mdgz",
+    ".mdl",
+    ".mdr",
+    ".mdz",
+    ".med",
+    ".mid",
+    ".mj2",
+    ".mjpeg",
+    ".mjpg",
+    ".mk3d",
+    ".mka",
+    ".mks",
+    ".mkv",
+    ".mlp",
+    ".mmcmp",
+    ".mms",
+    ".mo3",
+    ".mod",
+    ".mods",
+    ".moflex",
+    ".mov",
+    ".mp2",
+    ".mp3",
+    ".mp4",
+    ".mpa",
+    ".mpc",
+    ".mpl2",
+    ".mpo",
+    ".mptm",
+    ".msbc",
+    ".msf",
+    ".mt2",
+    ".mtaf",
+    ".mtm",
+    ".musx",
+    ".mvi",
+    ".mxg",
+    ".nfo",
+    ".nist",
+    ".nsp",
+    ".nst",
+    ".nut",
+    ".obu",
+    ".ogg",
+    ".okt",
+    ".oma",
+    ".omg",
+    ".osq",
+    ".paf",
+    ".pdv",
+    ".pjs",
+    ".plm",
+    ".ppm",
+    ".psm",
+    ".psp",
+    ".pt36",
+    ".ptm",
+    ".pvf",
+    ".qcif",
+    ".rco",
+    ".rcv",
+    ".rgb",
+    ".rka",
+    ".rsd",
+    ".rso",
+    ".rt",
+    ".s3gz",
+    ".s3m",
+    ".s3r",
+    ".s3z",
+    ".sami",
+    ".sb",
+    ".sbc",
+    ".sbg",
+    ".scc",
+    ".sdns",
+    ".sdr2",
+    ".sds",
+    ".sdx",
+    ".ser",
+    ".sf",
+    ".sfx",
+    ".sfx2",
+    ".sga",
+    ".shn",
+    ".sln",
+    ".smi",
+    ".son",
+    ".sph",
+    ".ss2",
+    ".st26",
+    ".stk",
+    ".stl",
+    ".stm",
+    ".stp",
+    ".str",
+    ".sub",
+    ".sup",
+    ".svag",
+    ".svs",
+    ".sw",
+    ".tak",
+    ".tco",
+    ".thd",
+    ".tta",
+    ".txt",
+    ".ty",
+    ".ty+",
+    ".ub",
+    ".ul",
+    ".ult",
+    ".umx",
+    ".usm",
+    ".uw",
+    ".v",
+    ".v210",
+    ".vag",
+    ".vb",
+    ".vc1",
+    ".viv",
+    ".vpk",
+    ".vqe",
+    ".vqf",
+    ".vql",
+    ".vt",
+    ".vtt",
+    ".vvc",
+    ".wa",
+    ".way",
+    ".webm",
+    ".wow",
+    ".wsd",
+    ".xl",
+    ".xm",
+    ".xmd",
+    ".xmgz",
+    ".xmr",
+    ".xmv",
+    ".xmz",
+    ".xpk",
+    ".xvag",
+    ".y4m",
+    ".yop",
+    ".yuv",
+    ".yuv10",
+]
+
+
+def processOneVideo(video_path: str) -> str:
+    command = [
+        "ffmpeg",
+        "-v",
+        "error",  # Show only errors
+        "-i",
+        video_path,  # Input file
+        "-f",
+        "null",
+        "-",  # Null output
+    ]
+
+    # Run the command and capture stderr (error log)
+    result = subprocess.run(command, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+
+    # Decode error log to a string and return it
+    error_log = result.stderr.decode("utf-8")
+    return error_log
+
+
+def getFileList(directoryPath: str, recurse: bool) -> list:
+    fileList = []
+    for sub in os.listdir(directoryPath):
+        if os.path.isfile(os.path.join(directoryPath, sub)):
+            fileList.append(os.path.join(directoryPath, sub))
+        elif recurse and os.path.isdir(os.path.join(directoryPath, sub)):
+            fileList.extend(getFileList(os.path.join(directoryPath, sub), recurse))
+    return fileList
+
+
+def processDirectory(directoryPath: str, recurse: bool) -> dict:
+    validFiles = [
+        a
+        for a in getFileList(directoryPath, recurse)
+        if os.path.splitext(a)[1] in HANDLED_EXTENSIONS
+    ]
+    brokenFiles = {}
+    count = 0
+    startTime = time.time()
+    for file in validFiles:
+        print(f"{os.path.basename(file)} ... Starting")
+        if count != 0:
+            estimatedCompletionTime = (
+                1.0 / count / len(validFiles) * (time.time() - startTime)
+            ) + startTime
+            print(
+                f"File {count}/{len(validFiles)} {round((time.time() - startTime))}s elapsed. Estimated Completion: {time.strftime("%Y-%m-%d %H:%M:%S", estimatedCompletionTime)}",
+                end="",
+            )
+        else:
+            print(
+                f"File {count}/{len(validFiles)} {round((time.time() - startTime))}s elapsed. Estimated Completion: Unknown",
+                end="",
+            )
+        sys.stdout.flush()
+
+        stdErrOutput = processOneVideo(file)
+        if stdErrOutput != "":
+            print(f"{os.path.basename(file)} ... Error")
+            brokenFiles[file] = stdErrOutput
+        else:
+            print(f"{os.path.basename(file)}")
+    return brokenFiles
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        prog="detectCorruptVideo",
+        description="ffmpeg cli wrapper to easily check video corruption.",
+        add_help=True,
+    )
+
+    parser.add_argument(
+        "-d", "--directory", help="Checks video files inside given directory."
+    )
+    parser.add_argument(
+        "-r", "--recurse", action="store_true", help="Recurse through subdirectories."
+    )
+    parser.add_argument("-f", "--file", help="Singular video file to check.")
+
+    args = parser.parse_args()
+
+    if args.file is not None:
+        if os.path.isfile(args.file):
+            print(f"'{args.file}' {processOneVideo(args.file)}")
+        else:
+            print("Not a file")
+            exit(1)
+
+    if args.directory is not None:
+        if os.path.isdir(args.directory):
+            broken = processDirectory(args.directory, args.recurse)
+            for key in broken.keys():
+                print(f"'{key}' '{broken[key]}")
+        else:
+            print("Not a directory")
+            exit(1)
+
+
+def generateSupportedFiles():
+    LINE_PATTERN = r"D\s\s(.*?)\s"
+    EXT_PATTERN = r"Common extensions: (.+)\."
+    unique = set()
+    # Get demuxers
+    output = subprocess.getoutput(["ffmpeg -hide_banner -demuxers"])
+    lines = output.split("\n")[4:]
+    print(f"Starting processing of {len(lines)} demuxers.")
+    demuxers = {}
+    for line in lines:
+        demuxer = re.findall(LINE_PATTERN, line)[0]
+        info = subprocess.getoutput([f"ffmpeg -hide_banner -h demuxer={demuxer}"])
+        exts = re.findall(EXT_PATTERN, info)
+        if exts:
+            demuxers[demuxer] = exts[0].split(",")
+            for ext in exts[0].split(","):
+                unique.add(f".{ext}")
+    print(sorted(unique))
